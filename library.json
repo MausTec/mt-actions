@@ -1,0 +1,23 @@
+{
+    "name": "mt-accessory-common",
+    "version": "0.0.1",
+    "description": "Common library for Maus-Tec Maus-Bus accessory devices identification and control.",
+    "keywords": "",
+    "repository":
+    {
+      "type": "git",
+      "url": "https://github.com/MausTec/mt-accessory-common.git"
+    },
+    "authors":
+    [
+      {
+        "name": "Mau Abata",
+        "email": "mau@maustec.io"
+      }
+    ],
+    "license": "MIT",
+    "dependencies": {
+    },
+    "frameworks": "*",
+    "platforms": "*"
+  }
