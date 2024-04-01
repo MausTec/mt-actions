@@ -1,23 +1,20 @@
 {
-    "name": "mt-accessory-common",
-    "version": "0.0.1",
-    "description": "Common library for Maus-Tec Maus-Bus accessory devices identification and control.",
-    "keywords": "",
-    "repository":
+  "name": "mt-actions",
+  "version": "0.0.1",
+  "description": "Action definition library for loading plugins within the Maus-Tec / Maus-Bus device ecosystem.",
+  "keywords": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MausTec/mt-plugins.git"
+  },
+  "authors": [
     {
-      "type": "git",
-      "url": "https://github.com/MausTec/mt-accessory-common.git"
-    },
-    "authors":
-    [
-      {
-        "name": "Mau Abata",
-        "email": "mau@maustec.io"
-      }
-    ],
-    "license": "MIT",
-    "dependencies": {
-    },
-    "frameworks": "*",
-    "platforms": "*"
-  }
+      "name": "Mau Abata",
+      "email": "mau@maustec.io"
+    }
+  ],
+  "license": "MIT",
+  "dependencies": {},
+  "frameworks": "*",
+  "platforms": "*"
+}
