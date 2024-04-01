@@ -8,6 +8,40 @@ extern "C" {
 #include "cJSON.h"
 
 struct mta_functions;
+struct mta_actions;
+
+typedef enum mta_condition_type {
+    MTA_CONDITION_IF,
+    MTA_CONDITION_UNLESS,
+    MTA_CONDITION_WHILE,
+    MTA_CONDITION_UNTIL,
+} mta_condition_type_t;
+
+/**
+ * @brief Conditional action collection.
+ *
+ * Actions may have conditions. This is handled by an internal function "if", which is called with
+ * the arguments "all", "any", and "none". Those are action lists which use the return value of the
+ * function to determine success. 0 values are success.
+ *
+ * Internal functions are declared for "eq", "neq", "gt", "gte", "lt", and "lte".
+ *
+ * In response, the arguments "then" and "else" are available which are action lists for the
+ * corresponding logical flow. In the future, the "if" action keyword will be expanded to include a
+ * "while" action, which can be used in the same way to create while/then loops.
+ *
+ * "return", "continue", and "break" are reserved function names as well. There will be static
+ * action pointers for these to control flow in the C API.
+ *
+ */
+typedef struct mta_condition {
+    enum mta_condition_type type;
+    struct mta_actions* cond_all;
+    struct mta_actions* cond_any;
+    struct mta_actions* cond_none;
+    struct mta_actions* cond_then;
+    struct mta_actions* cond_else;
+} mta_condition_t;
 
 /**
  * @brief Linked list of driver action invocations, which reference a functinon and pass arguments.
@@ -17,6 +51,7 @@ typedef struct mta_actions {
     cJSON* args;
     struct mta_actions* next;
     struct mta_functions* fn;
+    struct mta_condition* condition;
     char function[];
 } mta_actions_t;
 
