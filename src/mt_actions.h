@@ -7,9 +7,18 @@ extern "C" {
 
 #include "cJSON.h"
 
-struct mta_functions;
-struct mta_actions;
+struct mta_plugin;
 
+/**
+ * @brief System function callback for native functions.
+ *
+ */
+typedef int (*mta_system_function_t)(struct mta_plugin* plugin, cJSON* args);
+
+/**
+ * @brief Condition type of an action condition, for control logic.
+ *
+ */
 typedef enum mta_condition_type {
     MTA_CONDITION_IF,
     MTA_CONDITION_UNLESS,
@@ -71,6 +80,7 @@ typedef struct mta_events {
  */
 typedef struct mta_functions {
     struct mta_actions* actions;
+    mta_system_function_t system_fn;
     struct mta_functions* next;
     char function_name[];
 } mta_functions_t;
@@ -110,8 +120,6 @@ typedef struct mta_plugin {
     char display_name[];
 } mta_plugin_t;
 
-typedef void (*mta_system_function_t)(mta_plugin_t* driver, cJSON* args);
-
 // Data Definitions
 void mta_load(mta_plugin_t** driver, cJSON* root);
 void mta_unload(mta_plugin_t* driver);
@@ -127,10 +135,11 @@ mta_events_t* mta_define_event(mta_plugin_t* driver, const char* evt_name);
 mta_actions_t* mta_define_event_action(mta_events_t* events, const char* callee_name, cJSON* args);
 
 // Runtime Invocations
-void mta_function_call(mta_plugin_t* driver, const char* fn_name, cJSON* args);
+void mta_parse_args(mta_plugin_t* driver, cJSON* scope, cJSON* scope_args, cJSON* fn_args);
+int mta_function_call(mta_plugin_t* driver, const char* fn_name, cJSON* args, cJSON* scope);
 void mta_get_variable(mta_plugin_t* driver, const char* var_name, int* value);
 void mta_set_variable(mta_plugin_t* driver, const char* var_name, int value);
-void mta_action_invoke(mta_plugin_t* driver, mta_actions_t* action);
+int mta_action_invoke(mta_plugin_t* driver, mta_actions_t* actions, cJSON* fn_args);
 void mta_event_invoke(mta_plugin_t* driver, const char* event, int arg);
 
 /**

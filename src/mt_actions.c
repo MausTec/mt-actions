@@ -5,6 +5,8 @@
 static const char* TAG = "MB_DRIVER_DEBUG_REMOVE_ME";
 static const char* DEFAULT_DISPLAY_NAME = "<untitled>";
 
+static mta_functions_t* _system_functions = NULL;
+
 void mta_load_match(mta_plugin_t* driver, cJSON* match_json) {
     const char* serial_str = NULL;
 
@@ -240,7 +242,28 @@ mta_functions_t* mta_find_internal_function(mta_plugin_t* driver, const char* fn
     return NULL;
 }
 
+void mta_register_system_function(const char* fn_name, mta_system_function_t fn) {
+    if (fn_name == NULL) return;
+
+    mta_functions_t* node = (mta_functions_t*)malloc(sizeof(mta_functions_t) + strlen(fn_name) + 1);
+    if (node == NULL) return;
+
+    node->actions = NULL;
+    node->next = _system_functions;
+    node->system_fn = fn;
+    strcpy(node->function_name, fn_name);
+
+    _system_functions = node;
+}
+
 mta_functions_t* mta_find_system_function(mta_plugin_t* driver, const char* fn_name) {
+    mta_functions_t* ptr = _system_functions;
+
+    while (ptr != NULL) {
+        if (!strcmp(ptr->function_name, fn_name)) return ptr;
+        ptr = ptr->next;
+    }
+
     return NULL;
 }
 
@@ -248,36 +271,109 @@ mta_functions_t* mta_find_driver_function(mta_plugin_t* driver, const char* fn_n
     return NULL;
 }
 
-void mta_function_call(mta_plugin_t* driver, const char* fn_name, cJSON* fn_args) {
+cJSON* mta_find_variable(const char* var_name, mta_plugin_t* driver, cJSON* scope) {
+    cJSON* ptr;
+
+    cJSON_ArrayForEach(ptr, scope) {
+        if (ptr != NULL && ptr->string != NULL && !strcmp(ptr->string, var_name)) return ptr;
+    }
+
+    // for (driver->variabl) {
+    //     if (ptr != NULL && ptr->string != NULL && !strcmp(ptr->string, var_name)) return ptr;
+    // }
+
+    return NULL;
+}
+
+/**
+ * @brief this parses fn_args into a new scope. fn_args may reference variables within scope_args.
+ * Scope should only ever be 1 caller deep here, no globals.
+ *
+ * @param driver
+ * @param scope
+ * @param scope_args
+ * @param fn_args
+ */
+void mta_parse_args(mta_plugin_t* driver, cJSON* result, cJSON* scope_args, cJSON* fn_args) {
+    if (result == NULL) {
+        return;
+    }
+
+    cJSON* ptr;
+
+    cJSON_ArrayForEach(ptr, fn_args) {
+        if (ptr == NULL) continue;
+        cJSON* val = ptr;
+
+        if (cJSON_IsString(ptr)) {
+            switch (ptr->valuestring[0]) {
+            case '$': {
+                val = mta_find_variable(ptr->valuestring + 1, driver, scope_args);
+                if (val == NULL) continue;
+                break;
+            }
+            }
+        }
+
+        cJSON* ptr_duplicate = cJSON_Duplicate(val, cJSON_False);
+        cJSON_AddItemToObject(result, ptr->string, ptr_duplicate);
+    }
+}
+
+int mta_function_call(
+    mta_plugin_t* driver, const char* fn_name, cJSON* fn_args, cJSON* scope_args
+) {
+    int ret = 0;
     static int call_depth = 0;
     mta_functions_t* fn;
+    cJSON* scope;
 
     // Todo: bail out if call_depth is too high
+    call_depth++;
+    scope = cJSON_CreateObject();
+    mta_parse_args(driver, scope, scope_args, fn_args);
 
     if (fn_name[0] == '@') {
         fn = mta_find_internal_function(driver, fn_name);
 
         if (fn != NULL) {
-            call_depth++;
-
             ESP_LOGI(TAG, "driver[%s]::%s()", driver->display_name, fn->function_name);
 
-            mta_action_invoke(driver, fn->actions);
-
-            call_depth--;
+            ret = mta_action_invoke(driver, fn->actions, scope);
         }
     } else {
         // System function call:
-        ESP_LOGI(TAG, "system::%s", fn_name);
+        fn = mta_find_system_function(driver, fn_name);
+
+        if (fn != NULL) {
+            ESP_LOGI(TAG, "system::%s()", fn_name);
+
+            if (fn->system_fn != NULL) {
+                ret = fn->system_fn(driver, scope);
+            }
+        }
     }
+
+    cJSON_Delete(scope);
+    call_depth--;
+    return ret;
 }
 
-void mta_action_invoke(mta_plugin_t* driver, mta_actions_t* actions) {
+int mta_action_invoke(mta_plugin_t* driver, mta_actions_t* actions, cJSON* parent_scope) {
     mta_actions_t* action;
 
+    cJSON* scope = cJSON_Duplicate(parent_scope, cJSON_False);
+    cJSON_DeleteItemFromObject(scope, "$ret");
+    cJSON* ret_val = cJSON_AddNumberToObject(scope, "$ret", 0);
+    int ret = 0;
+
     for (action = actions; action != NULL; action = action->next) {
-        mta_function_call(driver, action->function, action->args);
+        ret = mta_function_call(driver, action->function, action->args, scope);
+        cJSON_SetIntValue(ret_val, ret);
     }
+
+    cJSON_Delete(scope);
+    return ret;
 }
 
 void mta_event_invoke(mta_plugin_t* driver, const char* event, int arg) {
@@ -286,7 +382,13 @@ void mta_event_invoke(mta_plugin_t* driver, const char* event, int arg) {
     for (evt = driver->events; evt != NULL; evt = evt->next) {
         if (!strcmp(event, evt->event_name)) {
             ESP_LOGI(TAG, "MB Event Invocation: driver=%s, event=%s", driver->display_name, event);
-            mta_action_invoke(driver, evt->actions);
+
+            cJSON* evt_args = cJSON_CreateObject();
+            cJSON_AddNumberToObject(evt_args, "$evt", arg);
+
+            mta_action_invoke(driver, evt->actions, evt_args);
+
+            cJSON_Delete(evt_args);
         }
     }
 }
